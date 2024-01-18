@@ -31,6 +31,7 @@ This is a big refactor for rxRust, almost reimplement everything and many api wa
 - **operator**: add `from_stream_result` converts an `Stream<Result<Item, Err>` into a fallible `Observable`.
 - **test**: reimplement the `FakeTimer` help us to control the timer when we write unit test.
 - **operator**: let `flat_map` and `flat_map_threads` accept `FnMut` instead of `Fn`, allowing for side effects.
+- **scheduler**: implemented scheduler for tokio `LocalSet`.
 
 ### Bug Fixes
 

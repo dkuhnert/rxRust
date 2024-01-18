@@ -304,6 +304,10 @@ pub use futures::executor::LocalSpawner as FuturesLocalScheduler;
 pub use futures::executor::ThreadPool as FuturesThreadPoolScheduler;
 #[cfg(all(feature = "tokio-scheduler", not(target_arch = "wasm32")))]
 pub use tokio::runtime::Handle as TokioScheduler;
+#[cfg(all(feature = "tokio-scheduler", not(target_arch = "wasm32")))]
+pub use tokio::task::LocalSet as TokioLocalSchedulerPool;
+#[cfg(all(feature = "tokio-scheduler", not(target_arch = "wasm32")))]
+pub type TokioLocalScheduler = std::rc::Rc<tokio::task::LocalSet>;
 
 macro_rules! impl_scheduler_method {
   ($spawn_macro: ident) => {
@@ -410,6 +414,20 @@ mod not_wasm_scheduler {
     {
       impl_scheduler_method!(tokio_runtime_spawn);
     }
+
+    macro_rules! tokio_runtime_spawn_local {
+      ($pool: ident, $future: ident) => {
+        $pool.spawn_local($future)
+      };
+    }
+
+    impl<T> Scheduler<T> for TokioLocalScheduler
+    where
+      T: Future + 'static,
+      T::Output: TaskReturn + 'static,
+    {
+      impl_scheduler_method!(tokio_runtime_spawn_local);
+    }
   }
 }
 
@@ -506,6 +524,31 @@ mod test {
       o.subscribe(move |v| *c_last.lock().unwrap() = v);
       CompleteStatus::wait_for_end(status);
       *last.lock().unwrap()
+    })
+  }
+
+  #[test]
+  fn bench_tokio_local_thread() {
+    do_bench_tokio_local_thread();
+  }
+
+  benchmark_group!(do_bench_tokio_local_thread, tokio_local_thread);
+
+  fn tokio_local_thread(b: &mut Bencher) {
+    b.iter(|| {
+      let runtime = tokio::runtime::Runtime::new().unwrap();
+      let local = std::rc::Rc::new(tokio::task::LocalSet::new());
+      let last = local
+        .block_on(
+          &runtime,
+          observable::from_iter(0..1000)
+            .observe_on(local.clone())
+            .last()
+            .to_future(),
+        )
+        .unwrap()
+        .unwrap();
+      assert_eq!(999, last);
     })
   }
 }
